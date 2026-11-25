@@ -57,6 +57,10 @@ if(${SUNSHINE_ENABLE_CUDA})
             list(APPEND CMAKE_CUDA_ARCHITECTURES 50 52 53 60 61 62 70 72)
         endif()
 
+        if(SUNSHINE_CUDA_ARCHITECTURES)
+            set(CMAKE_CUDA_ARCHITECTURES ${SUNSHINE_CUDA_ARCHITECTURES})
+        endif()
+
         # sort the architectures
         list(SORT CMAKE_CUDA_ARCHITECTURES COMPARE NATURAL)
 

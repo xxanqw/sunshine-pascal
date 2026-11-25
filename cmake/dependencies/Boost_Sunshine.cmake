@@ -60,6 +60,15 @@ if(NOT Boost_FOUND)
     set(BOOST_URL "https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz")  # cmake-lint: disable=C0301
     set(BOOST_HASH "SHA256=67acec02d0d118b5de9eb441f5fb707b3a1cdd884be00ca24b9a73c995511f74")
 
+    # Boost.Locale 1.89 groups locale.hpp under a directory that does not contain it.
+    # CMake 4.5 rejects this. See boostorg/locale@1d070743d98469809a92c5bb3fca4720bd2bd782.
+    set(BOOST_PATCH)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_VERSION VERSION_GREATER_EQUAL "4.5")
+        find_program(PATCH_EXECUTABLE patch REQUIRED)
+        set(BOOST_PATCH PATCH_COMMAND "${PATCH_EXECUTABLE}" -p1 -i
+                "${CMAKE_CURRENT_LIST_DIR}/../../patches/boost-locale-1.89-cmake.patch")
+    endif()
+
     if(CMAKE_VERSION VERSION_LESS "3.24.0")
         FetchContent_Declare(
                 Boost
@@ -80,6 +89,7 @@ if(NOT Boost_FOUND)
                 Boost
                 URL ${BOOST_URL}
                 URL_HASH ${BOOST_HASH}
+                ${BOOST_PATCH}
                 OVERRIDE_FIND_PACKAGE  # requires CMake 3.24+, but we have a macro to handle it for other versions
         )
     endif()

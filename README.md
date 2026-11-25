@@ -1,53 +1,56 @@
-# Sunshine on NVIDIA Pascal
+# Sunshine Pascal
 
-Build Sunshine with NVENC support for NVIDIA Pascal GPUs on Linux. This guide covers the latest stable Sunshine release as of November 25, 2026, `v2026.914.233613`. [Upstream release](https://github.com/SunshineStream/Sunshine/releases/tag/v2026.914.233613)
+Sunshine game-streaming host with a Linux x86_64 build setup for NVIDIA Pascal GPUs. The source is based on Sunshine v2026.914.233613, the latest stable release as of November 25, 2026. [Upstream release](https://github.com/SunshineStream/Sunshine/releases/tag/v2026.914.233613) · [Upstream README](README.upstream.md)
 
-## Why the stock build can fall back to software
+CUDA 13 dropped offline compilation for Pascal. Sunshine uses CUDA kernels for pixel conversion on its X11 NVENC path, so a newer-toolkit build can fail with `cudaErrorNoKernelImageForDevice` even when the driver still supports NVENC. This build uses CUDA 12 and targets compute capability 6.1 by default, including the GeForce GTX 1060. [CUDA 13 release notes](https://docs.nvidia.com/cuda/archive/13.0.0/cuda-toolkit-release-notes/index.html) · [Sunshine issue #5725](https://github.com/SunshineStream/Sunshine/issues/5725) · [NVIDIA's legacy GPU list](https://developer.nvidia.com/cuda-legacy-gpus)
 
-Sunshine's X11 capture path uses CUDA to convert captured frames to NV12 before NVENC encodes them. CUDA 13 ended offline compilation for Pascal, so a build using that toolkit can fail conversion with `cudaErrorNoKernelImageForDevice` on a Pascal card. CUDA 12 can build the converter for Pascal. [Sunshine issue #5725](https://github.com/SunshineStream/Sunshine/issues/5725) · [NVIDIA CUDA 13 release notes](https://docs.nvidia.com/cuda/archive/13.0.0/cuda-toolkit-release-notes/index.html)
+## Build
 
-Some FFmpeg builds require a newer NVENC API than NVIDIA's 580 driver exposes. The build below uses the FFmpeg libraries pinned by Sunshine. [FFmpeg compatibility report](https://github.com/CachyOS/distribution/issues/542) · [Sunshine's FFmpeg build configuration](https://github.com/SunshineStream/Sunshine/blob/v2026.914.233613/cmake/dependencies/ffmpeg.cmake)
+Install Sunshine's Linux build dependencies, including a C++23 host compiler, GCC 14 for CUDA, CMake 3.24 or later, Ninja, Node.js 22.12 or later, npm, Git, curl, xz, and patch. Use an NVIDIA proprietary driver that supports your card. See [upstream Linux dependency installation](docs/building.md#linux) and skip any CUDA 13 installation.
 
-## Build for Pascal
-
-Install Sunshine's Linux build dependencies, CUDA Toolkit 12.9, and a compatible host compiler such as GCC 14. Set the paths below to the CUDA and GCC installations on your system. The example uses the matching web and shader assets from an existing Sunshine installation at `/usr/share/sunshine`. [Upstream build instructions](https://github.com/SunshineStream/Sunshine/blob/v2026.914.233613/docs/building.md#linux) · [NVIDIA CUDA 12.9 downloads](https://developer.nvidia.com/cuda-12-9-2-download-archive)
+On Arch Linux, install the following packages on an up-to-date system. Install `gcc14` and `gcc14-libs` if your package mirror has them. The [Arch Linux Archive](https://archive.archlinux.org/packages/g/gcc14/) also provides the signed GCC 14 packages, or you can set `CUDA_HOST_CXX` to another CUDA 12-compatible compiler.
 
 ```sh
-git clone --branch v2026.914.233613 --recurse-submodules \
-  https://github.com/SunshineStream/Sunshine.git
-cd Sunshine
-
-# Target the GTX 1060 and other CUDA-capable cards with compute capability 6.1.
-cat > pascal-target.cmake <<'EOF'
-cmake_language(DEFER CALL set_property TARGET sunshine PROPERTY CUDA_ARCHITECTURES 61)
-EOF
-
-CUDA12_ROOT=/usr/local/cuda-12.9
-CUDA_HOST_CXX=/usr/bin/g++-14
-
-cmake -S . -B cmake-build-pascal -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CUDA_COMPILER="$CUDA12_ROOT/bin/nvcc" \
-  -DCMAKE_CUDA_HOST_COMPILER="$CUDA_HOST_CXX" \
-  -DCMAKE_PROJECT_Sunshine_INCLUDE="$PWD/pascal-target.cmake" \
-  -DSUNSHINE_ENABLE_CUDA=ON \
-  -DSUNSHINE_ASSETS_DIR=/usr/share/sunshine \
-  -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF
-
-cmake --build cmake-build-pascal --target sunshine
+sudo pacman -S --needed base-devel cmake ninja git curl xz patch \
+  nodejs npm python-jinja avahi libcap libdrm libevdev libpulse libva \
+  libx11 libxcb libxfixes libxrandr libxtst libxi mesa miniupnpc \
+  numactl openssl opus pipewire shaderc systemd vulkan-icd-loader wayland
 ```
 
-- Use the compute capability of your exact GPU when choosing the architecture value. [NVIDIA's legacy CUDA GPU list](https://developer.nvidia.com/cuda-legacy-gpus)
-- On Arch, newer glibc can require the upstream CUDA 12 math-header patch. Apply it to the local CUDA 12 toolkit if nvcc reports mismatched exception specifications for `sinpi`, `cospi`, or `rsqrt`. [Sunshine's CUDA 12 patch](https://github.com/SunshineStream/Sunshine/blob/v2026.914.233613/packaging/linux/patches/x86_64/cuda-12-math_functions.patch)
-- Rolling distributions with OpenSSL 4.1 or CMake 4.5 may need upstream compatibility fixes. [OpenSSL fix](https://github.com/SunshineStream/Sunshine/commit/dac66dfdd200c5f1bb4b31b4e34227690ca8c565) · [Boost.Locale CMake fixes](https://github.com/boostorg/locale/commit/1d070743d98469809a92c5bb3fca4720bd2bd782)
+```sh
+git clone https://github.com/xxanqw/sunshine-pascal.git
+cd sunshine-pascal
+./scripts/build-pascal.sh
+```
 
-## Verify NVENC
+The script initializes the pinned build submodules, downloads and verifies the NVIDIA CUDA 12.9 build components, and builds Sunshine and its web UI. It runs without root and keeps its CUDA toolkit and output in `cmake-build-pascal/`. The upstream workflow files are preserved under `.github/upstream-workflows/`.
 
-Run the build from the X11 or Xwayland session you intend to capture. Use a separate local test configuration and port if Sunshine is already running. Set `capture = x11` and `encoder = nvenc`, then confirm the startup log reports an NVENC encoder for the intended display.
+| Optional environment variable | Purpose |
+| --- | --- |
+| `CUDA12_ROOT` | Use an existing CUDA 12 toolkit. |
+| `CUDA_HOST_CXX` | Select the CUDA host C++ compiler. Defaults to `g++-14`. |
+| `CUDA_ARCHITECTURES` | Set the CUDA architecture list, such as `61` or `60;61;62`. Check NVENC support on your exact GPU. |
+| `BUILD_DIR` | Select another build directory. Use a fresh directory when changing compilers. |
+| `JOBS` | Set parallel build jobs. Defaults to four. |
+
+## Run and verify
+
+Run from the desktop session you want to capture. The default build uses its own assets in the build directory.
+
+```sh
+cd cmake-build-pascal
+./sunshine
+```
+
+To verify the X11 or Xwayland capture path, set `capture = x11` and `encoder = nvenc` in the Sunshine configuration. If you're targeting Xwayland from a Wayland session, launch with `env -u WAYLAND_DISPLAY ./sunshine` and set `DISPLAY` to the target Xwayland display. The log should show the encoders available for the selected GPU and display.
 
 ```text
 Found H.264 encoder: h264_nvenc [nvenc]
 Found HEVC encoder: hevc_nvenc [nvenc]
 ```
 
-Sunshine is developed by the upstream Sunshine project and licensed under GPL-3.0. [Source and license](https://github.com/SunshineStream/Sunshine/tree/v2026.914.233613)
+If another Sunshine instance is already running, use a separate configuration and port for the test. [Upstream configuration docs](https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2configuration.html)
+
+## Source and license
+
+This independent modification was made on November 25, 2026. It adds a CUDA architecture override and build script, and backports build compatibility fixes for [OpenSSL 4.1](https://github.com/SunshineStream/Sunshine/commit/dac66dfdd200c5f1bb4b31b4e34227690ca8c565) and [Boost.Locale on CMake 4.5](https://github.com/boostorg/locale/commit/1d070743d98469809a92c5bb3fca4720bd2bd782). Sunshine source is available under [GPL-3.0](LICENSE). See [NOTICE](NOTICE) for attribution and third-party information.

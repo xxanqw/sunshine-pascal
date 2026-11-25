@@ -62,6 +62,8 @@ elseif(UNIX)  # Linux
     # Linux capture methods
     option(SUNSHINE_ENABLE_CUDA
             "Enable cuda specific code." ON)
+    set(SUNSHINE_CUDA_ARCHITECTURES "" CACHE STRING
+            "Override the CUDA architectures compiled into Sunshine.")
     option(SUNSHINE_ENABLE_DRM
             "Enable KMS grab if available." ON)
     option(SUNSHINE_ENABLE_VAAPI
